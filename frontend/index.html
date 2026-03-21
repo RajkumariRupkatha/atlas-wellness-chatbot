@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Atlas Health Assistant</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-container">
+    <header class="header">
+      <h1>Atlas Health Assistant</h1>
+      <p>Your personal wellness companion for mindful living and positive habits.</p>
+    </header>
+
+    <main class="chat-window" id="chatWindow" aria-live="polite"></main>
+
+    <form id="chatForm" class="chat-form">
+      <input id="chatInput" type="text" placeholder="Share your wellness goals or ask for advice..." autocomplete="off" required />
+      <button type="submit">Send</button>
+    </form>
+
+    <div class="controls">
+      <button id="resetBtn" type="button">Reset Chat</button>
+    </div>
+
+    <footer class="footer">
+      <p>Atlas provides supportive, non-medical guidance for your well-being journey.</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
