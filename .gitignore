@@ -25,3 +25,7 @@ Thumbs.db
 # Misc
 *.swp
 *.swo
+
+# Dev/tooling — not part of the deployable app
+remotion/
+.claude/

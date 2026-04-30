@@ -1,0 +1,30 @@
+flowchart LR
+    U[User]
+
+    subgraph B["Browser Client"]
+        F[Frontend UI<br/>HTML + CSS + JavaScript]
+    end
+
+    subgraph S["Application Server"]
+        A[Express API]
+        G[Guardrail Logic]
+        C[Conversation Control]
+    end
+
+    subgraph X["External Services"]
+        O[OpenAI API]
+        D[Supabase Database]
+    end
+
+    U <--> F
+    F -->|POST /api/chat| A
+    F -->|GET /api/history| A
+    F -->|POST /api/reset| A
+    A --> G
+    A --> C
+    C --> O
+    C --> D
+    A --> D
+    O --> C
+    D --> A
+    A --> F

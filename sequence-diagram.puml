@@ -1,0 +1,43 @@
+@startuml
+actor User
+participant FrontendUI
+participant ChatAPI
+participant GuardrailService
+participant SessionService
+participant MessageRepository
+participant OpenAIService
+participant "OpenAI API" as OpenAI
+
+User -> FrontendUI : Type message and submit
+FrontendUI -> ChatAPI : POST /api/chat
+ChatAPI -> SessionService : getActiveSession(userId)
+SessionService --> ChatAPI : session
+ChatAPI -> MessageRepository : insert user message
+ChatAPI -> GuardrailService : isGreeting(message)?
+
+alt Greeting request
+  GuardrailService --> ChatAPI : true
+  ChatAPI -> MessageRepository : insert greeting reply
+  ChatAPI --> FrontendUI : greeting response
+else Not a greeting
+  ChatAPI -> GuardrailService : isMedicalRequest(message)?
+
+  alt Medical request
+    GuardrailService --> ChatAPI : true
+    ChatAPI -> MessageRepository : insert boundary reply
+    ChatAPI --> FrontendUI : safety boundary response
+  else Normal wellness request
+    GuardrailService --> ChatAPI : false
+    ChatAPI -> MessageRepository : getMessages(sessionId)
+    MessageRepository --> ChatAPI : stored messages
+    ChatAPI -> OpenAIService : generateAssistantReply(messages)
+    OpenAIService -> OpenAI : chat completion request
+    OpenAI --> OpenAIService : generated reply
+    OpenAIService --> ChatAPI : assistant reply
+    ChatAPI -> MessageRepository : insert assistant reply
+    ChatAPI --> FrontendUI : assistant response
+  end
+end
+
+FrontendUI --> User : Render response in chat
+@enduml

@@ -1,0 +1,34 @@
+flowchart TD
+    A([Start])
+    B[Receive user message]
+    C{Message is valid string?}
+    D[Return 400 error]
+    E[Resolve user id]
+    F[Get or create active session]
+    G[Store user message]
+    H[Normalize message]
+    I{Greeting detected?}
+    J[Store greeting reply]
+    K[Return greeting response]
+    L{Medical request detected?}
+    M[Store medical boundary reply]
+    N[Return safety response]
+    O[Load message history]
+    P[Trim to recent context]
+    Q[Build system + chat messages]
+    R[Call OpenAI API]
+    S{Model returned text?}
+    T[Use fallback response]
+    U[Store assistant reply]
+    V[Return assistant response]
+    W([End])
+
+    A --> B --> C
+    C -- No --> D --> W
+    C -- Yes --> E --> F --> G --> H --> I
+    I -- Yes --> J --> K --> W
+    I -- No --> L
+    L -- Yes --> M --> N --> W
+    L -- No --> O --> P --> Q --> R --> S
+    S -- No --> T --> U --> V --> W
+    S -- Yes --> U --> V --> W

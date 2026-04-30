@@ -1,0 +1,57 @@
+@startuml
+skinparam classAttributeIconSize 0
+
+class FrontendUI {
+  +initializeApp()
+  +renderConversation(messages)
+  +renderSuggestions()
+  +setLoadingState(isLoading)
+  +setStatus(message)
+  +sendMessage(content)
+  +resetConversation()
+}
+
+class ChatAPI {
+  +handleChat(req, res)
+  +handleHistory(req, res)
+  +handleReset(req, res)
+}
+
+class GuardrailService {
+  +normalizeContent(content)
+  +isGreeting(content)
+  +isMedicalRequest(content)
+}
+
+class SessionService {
+  +getActiveSession(userId)
+  +createFreshSession(userId)
+  +ensureUser(userId)
+}
+
+class MessageRepository {
+  +getMessages(sessionId)
+  +insertMessage(sessionId, role, content)
+}
+
+class OpenAIService {
+  +buildModelMessages(messages)
+  +generateAssistantReply(messages)
+}
+
+class SupabaseClient {
+}
+
+class OpenAIClient {
+}
+
+FrontendUI --> ChatAPI : uses HTTP API
+ChatAPI --> GuardrailService : validates scope
+ChatAPI --> SessionService : manages sessions
+ChatAPI --> MessageRepository : stores and loads messages
+ChatAPI --> OpenAIService : requests generation
+SessionService --> SupabaseClient : reads/writes users and sessions
+MessageRepository --> SupabaseClient : reads/writes messages
+OpenAIService --> OpenAIClient : sends prompt
+
+@enduml
