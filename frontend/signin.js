@@ -1,4 +1,4 @@
-const form = document.getElementById('signinForm');
+﻿const form = document.getElementById('signinForm');
 const statusEl = document.getElementById('signinStatus');
 const btn = document.getElementById('signinBtn');
 const guestLink = document.getElementById('guestLink');
@@ -121,7 +121,7 @@ form.addEventListener('submit', async (event) => {
     } else if (!user.onboardingComplete) {
       window.location.href = '/onboarding.html';
     } else {
-      window.location.href = '/index.html';
+      window.location.href = '/chat.html';
     }
   } catch (error) {
     setStatus(error.message, true);
@@ -139,7 +139,7 @@ if (guestLink) {
       .then(({ token, user }) => {
         persistSession(token, user);
         setStatus('Continuing as guest...');
-        window.location.href = '/index.html';
+        window.location.href = '/chat.html';
       })
       .catch((error) => setStatus(error.message, true))
       .finally(() => setLoading(false));

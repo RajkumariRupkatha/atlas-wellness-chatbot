@@ -1,4 +1,4 @@
-const form = document.getElementById('signupForm');
+﻿const form = document.getElementById('signupForm');
 const statusEl = document.getElementById('signupStatus');
 const btn = document.getElementById('signupBtn');
 const guestLink = document.getElementById('guestLink');
@@ -70,7 +70,7 @@ form.addEventListener('submit', async (event) => {
     } else if (!user.onboardingComplete) {
       window.location.href = '/onboarding.html';
     } else {
-      window.location.href = '/index.html';
+      window.location.href = '/chat.html';
     }
   } catch (error) {
     setStatus(error.message, true);
@@ -91,7 +91,7 @@ if (guestLink) {
         localStorage.setItem('atlas_user_role', user.role || 'user');
         localStorage.setItem('atlas_user_id', user.id || '');
         setStatus('Continuing as guest...');
-        window.location.href = '/index.html';
+        window.location.href = '/chat.html';
       })
       .catch((error) => setStatus(error.message, true))
       .finally(() => setLoading(false));

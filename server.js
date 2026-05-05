@@ -320,9 +320,11 @@ app.use(express.json());
 const FRONTEND_DIR = path.resolve(__dirname, 'frontend');
 
 app.get('/', (_req, res) => {
+  res.set('Cache-Control', 'no-store');
   res.sendFile(path.join(FRONTEND_DIR, 'landing.html'));
 });
 
+app.get('/.well-known/appspecific/com.chrome.devtools.json', (_req, res) => res.json({}));
 app.use(express.static(FRONTEND_DIR, { index: false }));
 app.use('/api', authenticateRequest);
 

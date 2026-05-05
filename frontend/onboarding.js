@@ -1,8 +1,8 @@
-const token = localStorage.getItem('atlas_token');
+﻿const token = localStorage.getItem('atlas_token');
 if (!token) {
   window.location.replace('/signin.html');
 } else if (localStorage.getItem('atlas_onboarding_complete') === 'true') {
-  window.location.replace('/index.html');
+  window.location.replace('/chat.html');
 }
 
 const nameEl = document.getElementById('userName');
@@ -48,7 +48,7 @@ startBtn.addEventListener('click', async () => {
     // non-blocking — proceed regardless
   }
   localStorage.setItem('atlas_onboarding_complete', 'true');
-  window.location.href = '/index.html';
+  window.location.href = '/chat.html';
 });
 
 showStep(1);

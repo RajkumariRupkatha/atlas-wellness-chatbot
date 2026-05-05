@@ -1,4 +1,4 @@
-// Cached DOM references
+﻿// Cached DOM references
 const elements = {
   chatWindow: document.getElementById('chatWindow'),
   chatForm: document.getElementById('chatForm'),
@@ -255,10 +255,26 @@ function addMessage(text, role) {
     }
 
     if (role === 'user') {
+      const copyBtn = document.createElement('button');
+      copyBtn.type = 'button';
+      copyBtn.className = 'user-copy-btn';
+      copyBtn.setAttribute('aria-label', 'Copy message');
+      copyBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="10" height="10" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+      copyBtn.addEventListener('click', async () => {
+        try {
+          await navigator.clipboard.writeText(text);
+          setStatus(ui.statusCopied);
+        } catch {
+          setStatus('Unable to copy this message.');
+        }
+      });
+      actions.appendChild(copyBtn);
+
       const editBtn = document.createElement('button');
       editBtn.type = 'button';
-      editBtn.className = 'message-action-btn';
-      editBtn.textContent = 'Edit';
+      editBtn.className = 'message-action-btn user-edit-btn';
+      editBtn.setAttribute('aria-label', 'Edit message');
+      editBtn.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>`;
       editBtn.addEventListener('click', () => {
         elements.chatInput.value = text;
         focusInput();
@@ -266,6 +282,16 @@ function addMessage(text, role) {
         setStatus(ui.statusEdited);
       });
       actions.appendChild(editBtn);
+
+      // Wrap user bubble + actions together so hover covers both
+      const wrapper = document.createElement('div');
+      wrapper.className = 'user-message-wrapper';
+      wrapper.appendChild(messageNode);
+      wrapper.appendChild(actions);
+      elements.chatWindow.appendChild(wrapper);
+      requestAnimationFrame(() => messageNode.classList.add('visible'));
+      scrollChatToBottom();
+      return;
     }
 
     messageNode.appendChild(actions);
@@ -379,7 +405,7 @@ async function loadRequestedSessionFromUrl() {
     state.activeSessionId = requestedSessionId;
     renderConversation(Array.isArray(data.messages) ? data.messages : []);
     setStatus(ui.statusHistory);
-    window.history.replaceState({}, '', '/index.html');
+    window.history.replaceState({}, '', '/chat.html');
     return true;
   } catch {
     setStatus('That conversation could not be loaded. Showing your latest session instead.');

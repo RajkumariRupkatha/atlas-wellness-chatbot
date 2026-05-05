@@ -1,4 +1,4 @@
-const TOKEN_KEY = 'atlas_token';
+﻿const TOKEN_KEY = 'atlas_token';
 
 const els = {
   search: document.getElementById('historySearch'),
@@ -124,7 +124,7 @@ async function init() {
 els.search.addEventListener('input', applySearch);
 els.resumeBtn.addEventListener('click', () => {
   if (!state.selectedSessionId) return;
-  window.location.href = `/index.html?sessionId=${encodeURIComponent(state.selectedSessionId)}`;
+  window.location.href = `/chat.html?sessionId=${encodeURIComponent(state.selectedSessionId)}`;
 });
 
 init().catch(() => {

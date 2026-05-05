@@ -1,4 +1,4 @@
-(function initSharedSidebar() {
+﻿(function initSharedSidebar() {
   const SIDEBAR_HTML = `
     <div class="sidebar-top-row">
       <button id="sidebarToggle" class="sidebar-toggle-btn" type="button" aria-label="Collapse sidebar">
@@ -17,7 +17,7 @@
     <div class="sidebar-settings">
       <p class="prev-sessions-label">Quick Access</p>
       <div class="settings-list">
-        <a class="settings-item" href="/index.html">
+        <a class="settings-item" href="/chat.html">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           New chat
         </a>
