@@ -152,6 +152,56 @@
               </section>
             </section>
 
+
+            <!-- Notifications section -->
+            <section class="profile-v2-panel" id="notificationsSection" style="display:none;">
+              <h1>Notifications</h1>
+              <p class="section-copy">Choose how often Atlas should reach out. Email and browser notifications are separate delivery channels, and browser notifications only work while Atlas is open and permission is granted.</p>
+
+              <form id="notificationsForm" class="profile-v2-form">
+                <div class="setting-group">
+                  <span class="group-label">Reminder cadence</span>
+                  <label class="check-row">
+                    <input id="dailyReminder" name="notificationCadence" type="radio" value="daily" checked />
+                    <span>Daily check-in reminder</span>
+                  </label>
+                  <label class="check-row">
+                    <input id="weeklySummary" name="notificationCadence" type="radio" value="weekly" />
+                    <span>Weekly summary</span>
+                  </label>
+                  <p class="field-hint">Weekly summaries are sent on Sundays at your chosen time.</p>
+                </div>
+
+                <label>
+                  <span>Reminder Time</span>
+                  <input id="reminderTime" type="time" value="20:00" />
+                </label>
+
+                <label>
+                  <span>Timezone</span>
+                  <select id="reminderTimezone"></select>
+                </label>
+
+                <div class="setting-group">
+                  <span class="group-label">Delivery channels</span>
+                  <label class="check-row">
+                    <input id="pushNotifications" type="checkbox" />
+                    <span>Browser notification</span>
+                  </label>
+                  <label class="check-row">
+                    <input id="emailNotifications" type="checkbox" />
+                    <span>Email reminder</span>
+                  </label>
+                </div>
+
+                <div class="profile-v2-actions">
+                  <button class="primary-btn" type="submit">Save Notifications</button>
+                  <button id="sendTestEmailBtn" class="ghost-btn" type="button">Send Test Email</button>
+                  <p id="notificationsStatus" class="status"></p>
+                </div>
+              </form>
+            </section>
+
           </main>
         </div>
       </div>
