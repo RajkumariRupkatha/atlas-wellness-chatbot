@@ -21,7 +21,7 @@ if (!process.env.JWT_SECRET) {
 // App configuration
 const APP_CONFIG = Object.freeze({
   port: process.env.PORT || 3000,
-  openaiModel: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
+  openaiModel: process.env.OPENAI_MODEL || 'gpt-4o-mini',
   openaiApiKey: process.env.OPENAI_API_KEY || process.env.API_KEY,
   resendApiKey: process.env.RESEND_API_KEY,
   emailFrom: process.env.EMAIL_FROM || 'Atlas Wellness <onboarding@resend.dev>',
@@ -55,10 +55,11 @@ const runtimeSettings = {
 };
 
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
+  cadence: 'daily',
   dailyReminder: true,
   reminderTime: '20:00',
   timezone: 'UTC',
-  weeklySummary: true,
+  weeklySummary: false,
   push: false,
   email: true,
 });
@@ -303,7 +304,7 @@ assertRequiredConfig(APP_CONFIG.openaiApiKey, 'ERROR: OPENAI_API_KEY (or API_KEY
 // External clients
 const app = express();
 const openai = new OpenAI({ apiKey: APP_CONFIG.openaiApiKey });
-const resend = APP_CONFIG.resendApiKey ? new Resend(APP_CONFIG.resendApiKey) : null;
+//const resend = APP_CONFIG.resendApiKey ? new Resend(APP_CONFIG.resendApiKey) : null;
 const supabase =
   APP_CONFIG.supabaseUrl && APP_CONFIG.supabaseKey
     ? createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey)
@@ -317,6 +318,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('frontend'));
 app.use('/api', authenticateRequest);
+const resend = new Resend(APP_CONFIG.resendApiKey);
 
 // Utility helpers
 function normalizeContent(content) {
@@ -532,7 +534,10 @@ function isValidTimeZone(value) {
 }
 
 function normalizeNotificationPreferences(raw = {}) {
+  const cadence = raw.cadence === 'weekly' || (raw.weeklySummary && !raw.dailyReminder) ? 'weekly' : 'daily';
+
   return {
+    cadence,
     dailyReminder: !!raw.dailyReminder,
     reminderTime: isValidReminderTime(raw.reminderTime)
       ? raw.reminderTime
@@ -540,7 +545,7 @@ function normalizeNotificationPreferences(raw = {}) {
     timezone: isValidTimeZone(raw.timezone)
       ? raw.timezone
       : DEFAULT_NOTIFICATION_PREFERENCES.timezone,
-    weeklySummary: !!raw.weeklySummary,
+    weeklySummary: cadence === 'weekly',
     push: !!raw.push,
     email: !!raw.email,
   };
@@ -602,6 +607,10 @@ function getLocalDateKey(date, timeZone) {
   return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
 }
 
+function getLocalWeekdayShort(date, timeZone) {
+  return new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(date);
+}
+
 function isReminderDueNow(date, prefs) {
   if (!prefs.dailyReminder || !prefs.email || !isValidReminderTime(prefs.reminderTime)) {
     return false;
@@ -660,7 +669,86 @@ async function sendDailyReminderEmail(user, prefs) {
   return true;
 }
 
-async function processDailyReminderTick() {
+function isWeeklySummaryDueNow(date, prefs) {
+  if (!prefs.weeklySummary || !prefs.email || !isValidReminderTime(prefs.reminderTime)) {
+    return false;
+  }
+
+  const [targetHour, targetMinute] = prefs.reminderTime.split(':').map(Number);
+  const timezone = prefs.timezone || DEFAULT_NOTIFICATION_PREFERENCES.timezone;
+  const local = getTimePartsInZone(date, timezone);
+  return getLocalWeekdayShort(date, timezone) === 'Sun' && local.hour === targetHour && local.minute === targetMinute;
+}
+
+async function sendWeeklySummaryEmail(user, prefs, now) {
+  if (!resend || !user?.email) {
+    return false;
+  }
+
+  const displayName = user.full_name || user.email.split('@')[0] || 'there';
+  const timezone = prefs.timezone || DEFAULT_NOTIFICATION_PREFERENCES.timezone;
+  const periodStart = getUtcStartOfLocalDay(subtractDays(now, 6), timezone);
+  const checkins = await getCheckinsInRange(user.id, periodStart.toISOString(), now.toISOString());
+  const metrics = ['sleep', 'mood', 'energy', 'stress', 'hydration'];
+  const labels = {
+    sleep: 'Sleep',
+    mood: 'Mood',
+    energy: 'Energy',
+    stress: 'Stress',
+    hydration: 'Hydration',
+  };
+
+  const averages = Object.fromEntries(
+    metrics.map((metric) => [
+      metric,
+      checkins.length
+        ? checkins.reduce((sum, row) => sum + (Number(row[metric]) || 0), 0) / checkins.length
+        : null,
+    ])
+  );
+
+  const lines = [
+    `Hi ${displayName},`,
+    '',
+    'Here is your Atlas weekly summary.',
+    '',
+    `Check-ins this week: ${checkins.length}`,
+    '',
+  ];
+
+  metrics.forEach((metric) => {
+    const value = averages[metric];
+    lines.push(`${labels[metric]} average: ${value === null ? 'No check-ins yet' : `${value.toFixed(1)}/10`}`);
+  });
+
+  if (checkins.length > 0) {
+    const latest = [...checkins].sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+    lines.push(
+      '',
+      'Latest check-in:',
+      `- Sleep: ${Number(latest.sleep) || 0}/10`,
+      `- Mood: ${Number(latest.mood) || 0}/10`,
+      `- Energy: ${Number(latest.energy) || 0}/10`,
+      `- Stress: ${Number(latest.stress) || 0}/10`,
+      `- Hydration: ${Number(latest.hydration) || 0}/10`
+    );
+  } else {
+    lines.push('', 'No check-ins were logged this week yet. Add a check-in in Atlas to start tracking trends.');
+  }
+
+  lines.push('', 'Open Atlas anytime to review the full timeline and guidance.', '', '— Atlas Wellness');
+
+  await resend.emails.send({
+    from: APP_CONFIG.emailFrom,
+    to: user.email,
+    subject: 'Atlas weekly wellness summary',
+    text: lines.join('\n'),
+  });
+
+  return true;
+}
+
+async function processNotificationTick() {
   if (reminderTickInProgress) return;
   reminderTickInProgress = true;
 
@@ -673,43 +761,64 @@ async function processDailyReminderTick() {
       if (!userId) continue;
 
       const prefs = normalizeNotificationPreferences(row.value || {});
-      if (!isReminderDueNow(now, prefs)) continue;
-
       const todayKey = getLocalDateKey(now, prefs.timezone);
-      const stateKey = `notification_state_${userId}`;
-      const stateRow = await getSetting(stateKey);
-      const lastReminderLocalDate = stateRow?.value?.lastReminderLocalDate || null;
-      if (lastReminderLocalDate === todayKey) continue;
-
       const user = await findUserById(userId);
       if (!user?.email) continue;
 
-      const dayStartUtc = getUtcStartOfLocalDay(now, prefs.timezone);
-      const checkinsToday = await countCheckinsSince(userId, dayStartUtc.toISOString());
-      if (checkinsToday > 0) {
-        await upsertSetting(stateKey, {
-          lastReminderLocalDate: todayKey,
-          skipped: 'already_checked_in',
-          updatedAt: now.toISOString(),
-        });
-        continue;
+      if (isReminderDueNow(now, prefs)) {
+        const stateKey = `notification_state_${userId}_daily`;
+        const stateRow = await getSetting(stateKey);
+        const lastReminderLocalDate = stateRow?.value?.lastReminderLocalDate || null;
+
+        if (lastReminderLocalDate !== todayKey) {
+          const dayStartUtc = getUtcStartOfLocalDay(now, prefs.timezone);
+          const checkinsToday = await countCheckinsSince(userId, dayStartUtc.toISOString());
+          if (checkinsToday > 0) {
+            await upsertSetting(stateKey, {
+              lastReminderLocalDate: todayKey,
+              skipped: 'already_checked_in',
+              updatedAt: now.toISOString(),
+            });
+          } else {
+            try {
+              const sent = await sendDailyReminderEmail(user, prefs);
+              if (sent) {
+                await upsertSetting(stateKey, {
+                  lastReminderLocalDate: todayKey,
+                  lastSentAt: now.toISOString(),
+                });
+                console.log(`Daily reminder sent to ${user.email} for user ${userId}`);
+              }
+            } catch (error) {
+              console.error(`Daily reminder send failed for ${userId}:`, error?.message || error);
+            }
+          }
+        }
       }
 
-      try {
-        const sent = await sendDailyReminderEmail(user, prefs);
-        if (!sent) continue;
+      if (isWeeklySummaryDueNow(now, prefs)) {
+        const stateKey = `notification_state_${userId}_weekly`;
+        const stateRow = await getSetting(stateKey);
+        const lastReminderLocalDate = stateRow?.value?.lastReminderLocalDate || null;
 
-        await upsertSetting(stateKey, {
-          lastReminderLocalDate: todayKey,
-          lastSentAt: now.toISOString(),
-        });
-        console.log(`Reminder sent to ${user.email} for user ${userId}`);
-      } catch (error) {
-        console.error(`Reminder send failed for ${userId}:`, error?.message || error);
+        if (lastReminderLocalDate !== todayKey) {
+          try {
+            const sent = await sendWeeklySummaryEmail(user, prefs, now);
+            if (sent) {
+              await upsertSetting(stateKey, {
+                lastReminderLocalDate: todayKey,
+                lastSentAt: now.toISOString(),
+              });
+              console.log(`Weekly summary sent to ${user.email} for user ${userId}`);
+            }
+          } catch (error) {
+            console.error(`Weekly summary send failed for ${userId}:`, error?.message || error);
+          }
+        }
       }
     }
   } catch (error) {
-    console.error('Reminder scheduler tick failed:', error?.message || error);
+    console.error('Notification scheduler tick failed:', error?.message || error);
   } finally {
     reminderTickInProgress = false;
   }
@@ -719,13 +828,13 @@ function startReminderScheduler() {
   if (reminderCronTask) return;
 
   reminderCronTask = cron.schedule('* * * * *', () => {
-    void processDailyReminderTick();
+    void processNotificationTick();
   });
 
   if (!resend) {
-    console.warn('Reminder scheduler started without RESEND_API_KEY. Email reminders are disabled.');
+    console.warn('Notification scheduler started without RESEND_API_KEY. Email reminders are disabled.');
   } else {
-    console.log('Reminder scheduler started (runs every minute).');
+    console.log('Notification scheduler started (runs every minute).');
   }
 }
 
@@ -752,7 +861,35 @@ async function withPersistence(context, remoteAction, memoryAction) {
     return memoryAction();
   }
 }
+async function handleNotificationsTest(req, res) {
+  try {
+    const user = await findUserById(req.user.userId);
 
+    if (!user?.email) {
+      return res.status(400).json({
+        error: 'No email found for this account.',
+      });
+    }
+
+    const data = await getSetting(`notifications_${req.user.userId}`);
+    const prefs = normalizeNotificationPreferences(
+      data?.value || DEFAULT_NOTIFICATION_PREFERENCES
+    );
+
+    await sendDailyReminderEmail(user, prefs);
+
+    return res.json({
+      success: true,
+      message: `Test notification sent to ${user.email}`,
+    });
+  } catch (error) {
+    console.error('Error in /api/notifications/test:', error);
+    return res.status(500).json({
+      error: 'Could not send test notification.',
+      details: error.message,
+    });
+  }
+}
 function ensureMemoryUser(userId, email = null, role = 'user', passwordHash = null, fullName = null) {
   const existing = memoryStore.users.get(userId);
   const now = new Date().toISOString();
@@ -1674,7 +1811,11 @@ async function handleLogin(req, res) {
       return res.status(400).json({ error: 'email and password are required' });
     }
 
-    const user = await findUserByEmail(email.toLowerCase());
+    const normalizedEmail = email.toLowerCase().trim();
+    let user = await findUserByEmail(normalizedEmail);
+    if (!user) {
+      user = await findUserById(normalizedEmail);
+    }
     if (!user || !user.password_hash) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
@@ -1684,15 +1825,22 @@ async function handleLogin(req, res) {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    if (!user.email || user.email !== normalizedEmail) {
+      await updateUser(user.id, { email: normalizedEmail });
+      user = { ...user, email: normalizedEmail };
+    }
+
+    const resolvedEmail = user.email || normalizedEmail;
+
     const token = signToken({
       userId: user.id,
       role: user.role || 'user',
-      email: user.email,
+      email: resolvedEmail,
       tokenVersion: user.token_version || 0,
     });
     return res.json({
       token,
-      user: { id: user.id, email: user.email, role: user.role || 'user', fullName: user.full_name || null, onboardingComplete: user.onboarding_complete || false },
+      user: { id: user.id, email: resolvedEmail, role: user.role || 'user', fullName: user.full_name || null, onboardingComplete: user.onboarding_complete || false },
     });
   } catch (error) {
     console.error('Error in /api/auth/login:', error);
@@ -2295,6 +2443,7 @@ app.post('/api/checkin', requireAuth, handleCheckin);
 app.get('/api/dashboard', requireAuth, handleDashboard);
 app.get('/api/notifications', requireAuth, handleNotificationsGet);
 app.post('/api/notifications', requireAuth, handleNotificationsSet);
+app.post('/api/notifications/test', requireAuth, handleNotificationsTest);
 
 app.get('/api/admin/metrics', requireAdmin, handleAdminMetrics);
 app.get('/api/admin/logs', requireAdmin, handleAdminLogs);
