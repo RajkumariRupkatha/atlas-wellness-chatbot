@@ -326,7 +326,14 @@ app.get('/', (_req, res) => {
 });
 
 app.get('/.well-known/appspecific/com.chrome.devtools.json', (_req, res) => res.json({}));
-app.use(express.static(FRONTEND_DIR, { index: false }));
+app.use(express.static(FRONTEND_DIR, {
+  index: false,
+  setHeaders: (res, filePath) => {
+    if (filePath.endsWith('.css') || filePath.endsWith('.js')) {
+      res.setHeader('Cache-Control', 'no-cache');
+    }
+  },
+}));
 app.use('/api', authenticateRequest);
 const resend = new Resend(APP_CONFIG.resendApiKey);
 
@@ -1546,6 +1553,127 @@ async function getCheckinsInRange(userId, fromIso, toIso) {
   );
 }
 
+// ── Streak helpers ────────────────────────────────────────────────────────────
+
+function computeStreakFromDates(isoTimestamps) {
+  const dates = [...new Set(isoTimestamps.map((ts) => ts.slice(0, 10)))]
+    .sort()
+    .reverse();
+
+  if (!dates.length) return { currentStreak: 0, longestStreak: 0, lastCheckinDate: null };
+
+  const today = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+
+  // Current streak — must start from today or yesterday
+  let currentStreak = 0;
+  if (dates[0] === today || dates[0] === yesterday) {
+    currentStreak = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const diffDays = Math.round(
+        (new Date(dates[i - 1]) - new Date(dates[i])) / 86400000
+      );
+      if (diffDays === 1) {
+        currentStreak++;
+      } else {
+        break;
+      }
+    }
+  }
+
+  // Longest streak — full history scan
+  let longestStreak = dates.length > 0 ? 1 : 0;
+  let tempStreak = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const diffDays = Math.round(
+      (new Date(dates[i - 1]) - new Date(dates[i])) / 86400000
+    );
+    if (diffDays === 1) {
+      tempStreak++;
+      if (tempStreak > longestStreak) longestStreak = tempStreak;
+    } else {
+      tempStreak = 1;
+    }
+  }
+
+  return { currentStreak, longestStreak, lastCheckinDate: dates[0] };
+}
+
+async function recomputeStreak(userId) {
+  return withPersistence(
+    'recomputeStreak',
+    async () => {
+      const { data, error } = await supabase
+        .from('daily_checkins')
+        .select('created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      if (!data || !data.length) return { currentStreak: 0, longestStreak: 0, lastCheckinDate: null };
+      return computeStreakFromDates(data.map((r) => r.created_at));
+    },
+    async () => {
+      const checkins = memoryStore.dailyCheckins
+        .filter((c) => c.user_id === userId)
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      if (!checkins.length) return { currentStreak: 0, longestStreak: 0, lastCheckinDate: null };
+      return computeStreakFromDates(checkins.map((c) => c.created_at));
+    }
+  );
+}
+
+function localDateMinusDays(dateStr, days) {
+  // Treat dateStr as UTC midnight to avoid DST shifts when doing date arithmetic
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+function isLocalDateValid(localDate) {
+  // Reject dates more than 1 day in the past or any future date relative to server UTC.
+  // Allows ±1 day to cover every timezone (UTC-12 to UTC+14).
+  const serverToday = new Date().toISOString().slice(0, 10);
+  const serverYesterday = localDateMinusDays(serverToday, 1);
+  const serverTomorrow = localDateMinusDays(serverToday, -1);
+  return localDate >= serverYesterday && localDate <= serverTomorrow;
+}
+
+async function incrementStreak(userId, localDate) {
+  const user = await getUserById(userId);
+  if (!user) return { currentStreak: 0, longestStreak: 0, alreadyCheckedIn: false };
+
+  const lastDate = user.last_checkin_date ? String(user.last_checkin_date).slice(0, 10) : null;
+  // Compute yesterday relative to the user's local date, not server UTC
+  const yesterday = localDateMinusDays(localDate, 1);
+
+  if (lastDate === localDate) {
+    return {
+      currentStreak: user.current_streak || 0,
+      longestStreak: user.longest_streak || 0,
+      alreadyCheckedIn: true,
+    };
+  }
+
+  let newStreak;
+  if (!lastDate) {
+    newStreak = 1;
+  } else if (lastDate === yesterday) {
+    newStreak = (user.current_streak || 0) + 1;
+  } else {
+    newStreak = 1;
+  }
+
+  const newLongest = Math.max(newStreak, user.longest_streak || 0);
+
+  await updateUser(userId, {
+    current_streak: newStreak,
+    longest_streak: newLongest,
+    last_checkin_date: localDate,
+  });
+
+  return { currentStreak: newStreak, longestStreak: newLongest, alreadyCheckedIn: false };
+}
+
 // Auth helpers
 async function authenticateRequest(req, res, next) {
   const authHeader = req.headers.authorization;
@@ -2071,10 +2199,58 @@ async function handleCheckin(req, res) {
 
     await createCheckin(payload);
 
-    return res.json({ success: true });
+    // Streak update — use client-supplied local date to handle timezones correctly
+    const rawLocalDate = req.body.localDate;
+    const localDate = typeof rawLocalDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(rawLocalDate) && isLocalDateValid(rawLocalDate)
+      ? rawLocalDate
+      : new Date().toISOString().slice(0, 10);
+
+    let streak = null;
+    try {
+      streak = await incrementStreak(userId, localDate);
+    } catch (streakErr) {
+      console.error('Streak increment failed, falling back to recompute:', streakErr.message);
+      try {
+        const recomputed = await recomputeStreak(userId);
+        await updateUser(userId, {
+          current_streak: recomputed.currentStreak,
+          longest_streak: recomputed.longestStreak,
+          last_checkin_date: recomputed.lastCheckinDate,
+        });
+        streak = { currentStreak: recomputed.currentStreak, longestStreak: recomputed.longestStreak, alreadyCheckedIn: false };
+      } catch (recomputeErr) {
+        console.error('Streak recompute also failed:', recomputeErr.message);
+      }
+    }
+
+    return res.json({ success: true, streak });
   } catch (error) {
     console.error('Error in /api/checkin:', error);
     return res.status(500).json({ error: 'Internal server error', details: error.message });
+  }
+}
+
+async function handleStreak(req, res) {
+  try {
+    const userId = req.user.userId;
+    const localDate = typeof req.query.localDate === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(req.query.localDate)
+      ? req.query.localDate
+      : new Date().toISOString().slice(0, 10);
+
+    const user = await getUserById(userId);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+
+    const lastDate = user.last_checkin_date ? String(user.last_checkin_date).slice(0, 10) : null;
+
+    return res.json({
+      currentStreak: user.current_streak || 0,
+      longestStreak: user.longest_streak || 0,
+      checkedInToday: lastDate === localDate,
+      lastCheckinDate: lastDate,
+    });
+  } catch (error) {
+    console.error('Error in /api/streak:', error);
+    return res.status(500).json({ error: 'Internal server error' });
   }
 }
 
@@ -2450,6 +2626,7 @@ app.post('/api/auth/reset', handleResetPassword);
 app.post('/api/auth/guest', handleGuestLogin);
 app.post('/api/auth/onboarding-complete', requireAuth, handleOnboardingComplete);
 app.post('/api/checkin', requireAuth, handleCheckin);
+app.get('/api/streak', requireAuth, handleStreak);
 app.get('/api/dashboard', requireAuth, handleDashboard);
 app.get('/api/notifications', requireAuth, handleNotificationsGet);
 app.post('/api/notifications', requireAuth, handleNotificationsSet);

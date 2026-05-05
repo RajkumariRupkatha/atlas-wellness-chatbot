@@ -118,7 +118,7 @@ form.addEventListener('submit', async (event) => {
 
     if (user.role === 'admin') {
       window.location.href = '/admin.html';
-    } else if (!user.onboardingComplete) {
+    } else if (mode === 'signup' && !user.onboardingComplete) {
       window.location.href = '/onboarding.html';
     } else {
       window.location.href = '/chat.html';

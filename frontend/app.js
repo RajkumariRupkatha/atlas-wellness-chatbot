@@ -11,80 +11,12 @@ const elements = {
   appTitle: document.getElementById('appTitle'),
   footerText: document.getElementById('footerText'),
   logoutBtn: document.getElementById('logoutBtn'),
-  topbarUserName: document.getElementById('topbarUserName'),
-  sidebarToggle: document.getElementById('sidebarToggle'),
-  sidebarExpandBtn: document.getElementById('sidebarExpandBtn'),
   sessionList: document.getElementById('sessionList'),
   newChatBtn: document.getElementById('newChatBtn'),
   sidebarSignOut: document.getElementById('sidebarSignOut'),
   responseStyle: document.getElementById('responseStyle'),
 };
 
-// Sidebar collapse/expand + drag resize
-(function initSidebar() {
-  const shell = document.querySelector('.app-shell');
-  const heroPanel = document.querySelector('.hero-panel');
-  const handle = document.getElementById('resizeHandle');
-  if (!shell || !elements.sidebarToggle || !heroPanel) return;
-
-  const MIN_W = 180;
-  const MAX_W = 560;
-
-  function applyWidth(w) {
-    heroPanel.style.flexBasis = w + 'px';
-    heroPanel.style.width = w + 'px';
-  }
-
-  // Restore saved width
-  const savedW = parseInt(localStorage.getItem('atlas_sidebar_width'), 10);
-  if (savedW >= MIN_W && savedW <= MAX_W) applyWidth(savedW);
-
-  // Restore collapsed state
-  if (localStorage.getItem('atlas_sidebar_collapsed') === 'true') {
-    shell.classList.add('sidebar-collapsed');
-  }
-
-  function toggleSidebar() {
-    const collapsed = shell.classList.toggle('sidebar-collapsed');
-    localStorage.setItem('atlas_sidebar_collapsed', collapsed);
-  }
-
-  elements.sidebarToggle.addEventListener('click', toggleSidebar);
-  if (elements.sidebarExpandBtn) {
-    elements.sidebarExpandBtn.addEventListener('click', toggleSidebar);
-  }
-
-  // Drag to resize
-  if (!handle) return;
-  handle.addEventListener('mousedown', (e) => {
-    e.preventDefault();
-    const startX = e.clientX;
-    const startW = heroPanel.getBoundingClientRect().width;
-    handle.classList.add('is-dragging');
-    document.body.style.cursor = 'col-resize';
-    document.body.style.userSelect = 'none';
-
-    heroPanel.classList.add('no-transition');
-
-    function onMove(e) {
-      const w = Math.min(MAX_W, Math.max(MIN_W, startW + e.clientX - startX));
-      applyWidth(w);
-    }
-
-    function onUp() {
-      heroPanel.classList.remove('no-transition');
-      handle.classList.remove('is-dragging');
-      document.body.style.cursor = '';
-      document.body.style.userSelect = '';
-      localStorage.setItem('atlas_sidebar_width', parseInt(heroPanel.style.width, 10));
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-    }
-
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
-  });
-}());
 
 const USER_ID_STORAGE_KEY = 'atlas_user_id';
 const RESPONSE_DELAY_MS = 350;
@@ -176,12 +108,6 @@ function applyUiCopy() {
   if (elements.resetBtn) elements.resetBtn.textContent = ui.reset;
   if (elements.suggestionsLabel) elements.suggestionsLabel.textContent = ui.quickPromptsTitle;
   if (elements.footerText) elements.footerText.textContent = ui.footer;
-  if (elements.topbarUserName) {
-    const displayName = state.userName
-      || (state.userEmail ? state.userEmail.split('@')[0] : '')
-      || 'You';
-    elements.topbarUserName.textContent = displayName;
-  }
 }
 
 function setStatus(message) {
@@ -601,11 +527,11 @@ async function refreshDisplayName() {
       state.userName = name;
       localStorage.setItem('atlas_user_name', name);
     }
-    if (elements.topbarUserName) {
-      const displayName = state.userName
+    const chipEl = document.getElementById('topbarUserName');
+    if (chipEl) {
+      chipEl.textContent = state.userName
         || (state.userEmail ? state.userEmail.split('@')[0] : '')
         || 'You';
-      elements.topbarUserName.textContent = displayName;
     }
   } catch {
     // non-fatal

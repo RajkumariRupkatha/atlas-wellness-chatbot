@@ -1,6 +1,7 @@
-﻿(function initSharedSidebar() {
+(function initSharedSidebar() {
   const SIDEBAR_HTML = `
     <div class="sidebar-top-row">
+      <span id="topbarUserName" class="topbar-user-chip"></span>
       <button id="sidebarToggle" class="sidebar-toggle-btn" type="button" aria-label="Collapse sidebar">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <polyline points="15 18 9 12 15 6"></polyline>
@@ -14,13 +15,19 @@
       <p class="chat-heading-sub">Your wellness companion for better routines, lower stress, and sustainable healthy habits.</p>
     </div>
 
+    <div class="sidebar-streak" id="sidebarStreak">
+      <span class="sidebar-streak-flame">🔥</span>
+      <span class="sidebar-streak-count" id="sidebarStreakCount">—</span>
+      <span class="sidebar-streak-label">day streak</span>
+    </div>
+
     <div class="sidebar-settings">
       <p class="prev-sessions-label">Quick Access</p>
       <div class="settings-list">
-        <a class="settings-item" href="/chat.html">
+        <button class="settings-item" id="newChatBtn" type="button">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           New chat
-        </a>
+        </button>
         <a class="settings-item" href="/checkin.html">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
           Daily Check-in
@@ -33,6 +40,13 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           History
         </a>
+      </div>
+    </div>
+
+    <div class="prev-sessions">
+      <p class="prev-sessions-label">Previous conversations</p>
+      <div id="sessionList" class="session-list">
+        <p class="session-empty">Your past conversations will appear here.</p>
       </div>
     </div>
 
@@ -51,33 +65,48 @@
     </div>
   `;
 
-  const heroPanel = document.querySelector('.hero-panel');
+  var heroPanel = document.querySelector('.hero-panel');
   if (!heroPanel) return;
   heroPanel.innerHTML = SIDEBAR_HTML;
 
+  // Populate username chip from localStorage
+  var nameEl = document.getElementById('topbarUserName');
+  if (nameEl) {
+    var savedName = localStorage.getItem('atlas_user_name') || '';
+    var savedEmail = localStorage.getItem('atlas_user_email') || '';
+    nameEl.textContent = savedName || (savedEmail ? savedEmail.split('@')[0] : '');
+  }
+
   // Mark the active nav item
-  const path = window.location.pathname;
+  var path = window.location.pathname;
   heroPanel.querySelectorAll('a.settings-item').forEach(function(el) {
-    const href = el.getAttribute('href') || '';
+    var href = el.getAttribute('href') || '';
     if (path === href || path.endsWith(href.replace(/^\//, ''))) {
       el.classList.add('active');
     }
   });
 
-  const shell = document.querySelector('.app-shell');
-  const toggle = document.getElementById('sidebarToggle');
-  const expandBtn = document.getElementById('sidebarExpandBtn');
-  const MIN_W = 180;
-  const MAX_W = 560;
+  // On non-chat pages, "New chat" navigates to the chat page
+  var newChatBtn = document.getElementById('newChatBtn');
+  if (newChatBtn && !path.endsWith('chat.html') && path !== '/') {
+    newChatBtn.addEventListener('click', function() {
+      window.location.href = '/chat.html';
+    });
+  }
 
-  // Restore saved width
-  const savedW = parseInt(localStorage.getItem('atlas_sidebar_width'), 10);
+  // Sidebar collapse/expand
+  var shell = document.querySelector('.app-shell');
+  var toggle = document.getElementById('sidebarToggle');
+  var expandBtn = document.getElementById('sidebarExpandBtn');
+  var MIN_W = 180;
+  var MAX_W = 560;
+
+  var savedW = parseInt(localStorage.getItem('atlas_sidebar_width'), 10);
   if (savedW >= MIN_W && savedW <= MAX_W) {
     heroPanel.style.flexBasis = savedW + 'px';
     heroPanel.style.width = savedW + 'px';
   }
 
-  // Restore collapsed state
   if (localStorage.getItem('atlas_sidebar_collapsed') === 'true') {
     shell && shell.classList.add('sidebar-collapsed');
   }
@@ -133,4 +162,20 @@
 
   var signOutBtn = document.getElementById('sidebarSignOut');
   if (signOutBtn) signOutBtn.addEventListener('click', signOut);
+
+  // Load streak
+  var token = localStorage.getItem('atlas_token');
+  if (token) {
+    var localDate = new Date().toLocaleDateString('en-CA');
+    fetch('/api/streak?localDate=' + localDate, {
+      headers: { Authorization: 'Bearer ' + token },
+    })
+      .then(function(r) { return r.ok ? r.json() : null; })
+      .then(function(data) {
+        if (!data) return;
+        var countEl = document.getElementById('sidebarStreakCount');
+        if (countEl) countEl.textContent = data.currentStreak || 0;
+      })
+      .catch(function() {});
+  }
 }());
