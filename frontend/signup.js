@@ -63,8 +63,15 @@ form.addEventListener('submit', async (event) => {
     localStorage.setItem('atlas_user_role', user.role || 'user');
     localStorage.setItem('atlas_user_id', user.id || '');
     localStorage.setItem('atlas_user_name', user.fullName || fullName || '');
+    localStorage.removeItem('atlas_onboarding_complete');
     setStatus('Account created. Redirecting...');
-    window.location.href = user.role === 'admin' ? '/admin.html' : '/onboarding.html';
+    if (user.role === 'admin') {
+      window.location.href = '/admin.html';
+    } else if (!user.onboardingComplete) {
+      window.location.href = '/onboarding.html';
+    } else {
+      window.location.href = '/index.html';
+    }
   } catch (error) {
     setStatus(error.message, true);
   } finally {

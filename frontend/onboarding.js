@@ -1,8 +1,8 @@
 const token = localStorage.getItem('atlas_token');
-if (localStorage.getItem('atlas_onboarding_complete') === 'true') {
-  window.location.replace('/index.html');
-} else if (!token) {
+if (!token) {
   window.location.replace('/signin.html');
+} else if (localStorage.getItem('atlas_onboarding_complete') === 'true') {
+  window.location.replace('/index.html');
 }
 
 const nameEl = document.getElementById('userName');

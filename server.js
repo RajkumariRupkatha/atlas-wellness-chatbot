@@ -10,6 +10,7 @@ const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
+const path = require('path');
 const { buildListenFailureResult, probeAtlasHealth } = require('./startup-utils');
 const rateLimitStore = new Map();
 
@@ -315,12 +316,14 @@ if (!supabase) {
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('frontend'));
+
+const FRONTEND_DIR = path.resolve(__dirname, 'frontend');
 
 app.get('/', (_req, res) => {
-  res.sendFile('landing.html', { root: 'frontend' });
+  res.sendFile(path.join(FRONTEND_DIR, 'landing.html'));
 });
 
+app.use(express.static(FRONTEND_DIR, { index: false }));
 app.use('/api', authenticateRequest);
 
 // Utility helpers

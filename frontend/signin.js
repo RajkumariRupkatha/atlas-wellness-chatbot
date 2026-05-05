@@ -108,15 +108,17 @@ form.addEventListener('submit', async (event) => {
       ? await signup(email, password, fullName)
       : await signin(email, password);
     persistSession(token, user);
-    if (mode === 'signup') {
-      // Ensure first-time users always go through onboarding before chat.
+    // Sync localStorage with server's ground truth for onboarding state.
+    if (user.onboardingComplete) {
+      localStorage.setItem('atlas_onboarding_complete', 'true');
+    } else {
       localStorage.removeItem('atlas_onboarding_complete');
     }
     setStatus(mode === 'signup' ? 'Account created. Redirecting...' : 'Signed in. Redirecting...');
 
     if (user.role === 'admin') {
       window.location.href = '/admin.html';
-    } else if (mode === 'signup') {
+    } else if (!user.onboardingComplete) {
       window.location.href = '/onboarding.html';
     } else {
       window.location.href = '/index.html';
