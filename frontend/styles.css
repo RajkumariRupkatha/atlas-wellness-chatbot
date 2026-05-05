@@ -1778,6 +1778,22 @@ a.new-chat-btn {
   gap: 10px;
 }
 
+.profile-v2-form input,
+.profile-v2-form select {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px;
+  font: inherit;
+  background: rgba(255, 253, 249, 0.95);
+  color: var(--text);
+}
+
+.profile-v2-form select {
+  padding-right: 28px;
+}
+
 .profile-v2-form label {
   display: grid;
   gap: 4px;
@@ -1789,13 +1805,55 @@ a.new-chat-btn {
   font-weight: 700;
 }
 
-.profile-v2-form input {
-  height: 36px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
+.profile-v2-form input[type='radio'],
+.profile-v2-form input[type='checkbox'] {
+  width: 16px;
+  min-height: 16px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--accent-deep);
+  flex: 0 0 auto;
+}
+
+.setting-group {
+  display: grid;
+  gap: 8px;
+}
+
+.group-label {
+  font-size: 0.75rem;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
   padding: 0 10px;
-  font: inherit;
-  background: rgba(255, 253, 249, 0.95);
+  border: 1px solid rgba(82, 68, 52, 0.12);
+  border-radius: 10px;
+  background: rgba(255, 253, 249, 0.82);
+}
+
+.check-row span {
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.field-hint {
+  margin: -2px 2px 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--muted);
+}
+
+.profile-v2-form input:focus,
+.profile-v2-form select:focus {
+  outline: none;
+  border-color: rgba(198, 109, 69, 0.35);
+  box-shadow: 0 0 0 3px rgba(198, 109, 69, 0.12);
 }
 
 .profile-v2-actions {
@@ -2654,6 +2712,38 @@ a.new-chat-btn {
   .checkin-actions .primary-btn,
   .admin-actions .primary-btn {
     width: 100%;
+  }
+
+  .profile-v2-shell {
+    width: min(100%, calc(100% - 16px));
+    grid-template-columns: 1fr;
+  }
+
+  .profile-v2-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .profile-v2-actions .primary-btn,
+  .profile-v2-actions .status {
+    width: 100%;
+  }
+
+  .profile-v2-form input,
+  .profile-v2-form select {
+    min-height: 34px;
+    font-size: 0.9rem;
+  }
+
+  .check-row {
+    min-height: 34px;
+    padding: 0 8px;
+  }
+
+  .profile-v2-form input[type='radio'],
+  .profile-v2-form input[type='checkbox'] {
+    width: 14px;
+    min-height: 14px;
   }
 
   .dashboard-top {

@@ -28,7 +28,106 @@ const els = {
   logoutAllBtn: document.getElementById('logoutAllBtn'),
   logoutAllStatus: document.getElementById('logoutAllStatus'),
   logoutBtn: document.getElementById('logoutBtn'),
+  notificationsForm: document.getElementById('notificationsForm'),
+  dailyReminder: document.getElementById('dailyReminder'),
+  weeklySummary: document.getElementById('weeklySummary'),
+  reminderTime: document.getElementById('reminderTime'),
+  reminderTimezone: document.getElementById('reminderTimezone'),
+  pushNotifications: document.getElementById('pushNotifications'),
+  emailNotifications: document.getElementById('emailNotifications'),
+  notificationsStatus: document.getElementById('notificationsStatus'),
+  sendTestEmailBtn: document.getElementById('sendTestEmailBtn'),
 };
+
+function detectBrowserTimezone() {
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
+  } catch {
+    return 'UTC';
+  }
+}
+
+function getTimezoneOptions() {
+  if (typeof Intl !== 'undefined' && typeof Intl.supportedValuesOf === 'function') {
+    try {
+      const values = Intl.supportedValuesOf('timeZone');
+      if (Array.isArray(values) && values.length > 0) {
+        return values;
+      }
+    } catch {
+      // Fall through to UTC.
+    }
+  }
+  return ['UTC'];
+}
+
+function populateTimezoneSelect(selectedValue) {
+  if (!els.reminderTimezone) return;
+  const browserZone = detectBrowserTimezone();
+  const options = getTimezoneOptions();
+  els.reminderTimezone.innerHTML = '';
+
+  options.forEach((zone) => {
+    const option = document.createElement('option');
+    option.value = zone;
+    option.textContent = zone;
+    els.reminderTimezone.appendChild(option);
+  });
+
+  const preferred = selectedValue || browserZone || 'UTC';
+  els.reminderTimezone.value = options.includes(preferred) ? preferred : 'UTC';
+}
+
+function getSelectedCadence(prefs = {}) {
+  if (prefs.cadence === 'weekly') return 'weekly';
+  if (prefs.weeklySummary && !prefs.dailyReminder) return 'weekly';
+  return 'daily';
+}
+
+function syncCadenceControls(prefs) {
+  const cadence = getSelectedCadence(prefs);
+  if (els.dailyReminder) els.dailyReminder.checked = cadence === 'daily';
+  if (els.weeklySummary) els.weeklySummary.checked = cadence === 'weekly';
+}
+
+let notificationTimer = null;
+
+function scheduleLocalNotification(prefs) {
+  if (notificationTimer) clearTimeout(notificationTimer);
+  notificationTimer = null;
+
+  const wantsNotifications = prefs.dailyReminder || prefs.weeklySummary;
+  if (!wantsNotifications || !prefs.push || !('Notification' in window) || Notification.permission !== 'granted') {
+    return;
+  }
+
+  const [hour, minute] = (prefs.reminderTime || '20:00').split(':').map(Number);
+  const now = new Date();
+  const next = new Date(now);
+  next.setSeconds(0, 0);
+
+  if (prefs.weeklySummary && !prefs.dailyReminder) {
+    const daysUntilSunday = (7 - next.getDay()) % 7;
+    next.setDate(next.getDate() + daysUntilSunday);
+    next.setHours(hour, minute, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 7);
+  } else {
+    next.setHours(hour, minute, 0, 0);
+    if (next <= now) next.setDate(next.getDate() + 1);
+  }
+
+  notificationTimer = setTimeout(() => {
+    const title = prefs.weeklySummary && !prefs.dailyReminder
+      ? 'Atlas weekly summary'
+      : 'Atlas wellness check-in';
+    const body = prefs.weeklySummary && !prefs.dailyReminder
+      ? 'Your weekly summary is ready. Open Atlas to review it.'
+      : 'Take a minute to check in with your sleep, stress, energy, and hydration.';
+
+    new Notification(title, { body });
+    scheduleLocalNotification(prefs);
+  }, next.getTime() - now.getTime());
+}
 
 function requireToken() {
   const token = localStorage.getItem(tokenKey);
@@ -87,6 +186,23 @@ function applyValidationMessages() {
     field.addEventListener('invalid', () => field.setCustomValidity('Please complete this field.'));
     field.addEventListener('input', () => field.setCustomValidity(''));
   });
+}
+
+async function loadNotifications() {
+  if (!els.notificationsForm) return;
+
+  try {
+    const data = await requestJson('/api/notifications');
+    const prefs = data.preferences || {};
+    syncCadenceControls(prefs);
+    populateTimezoneSelect(prefs.timezone || detectBrowserTimezone());
+    if (els.reminderTime) els.reminderTime.value = prefs.reminderTime || '20:00';
+    if (els.pushNotifications) els.pushNotifications.checked = !!prefs.push;
+    if (els.emailNotifications) els.emailNotifications.checked = prefs.email !== false;
+    scheduleLocalNotification(prefs);
+  } catch (error) {
+    setStatus(els.notificationsStatus, error.message || 'Could not load notification settings.', true);
+  }
 }
 
 async function loadProfile() {
@@ -242,5 +358,55 @@ els.logoutBtn.addEventListener('click', () => {
   window.location.href = '/signin.html';
 });
 
+if (els.notificationsForm) els.notificationsForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  setStatus(els.notificationsStatus, '');
+
+  const cadence = els.weeklySummary && els.weeklySummary.checked ? 'weekly' : 'daily';
+  let pushEnabled = !!els.pushNotifications?.checked;
+  if (pushEnabled && 'Notification' in window && Notification.permission !== 'granted') {
+    const permission = await Notification.requestPermission();
+    pushEnabled = permission === 'granted';
+    els.pushNotifications.checked = pushEnabled;
+  }
+
+  const prefs = {
+    cadence,
+    dailyReminder: cadence === 'daily',
+    weeklySummary: cadence === 'weekly',
+    reminderTime: els.reminderTime?.value || '20:00',
+    timezone: els.reminderTimezone ? (els.reminderTimezone.value || detectBrowserTimezone()) : detectBrowserTimezone(),
+    push: pushEnabled,
+    email: !!els.emailNotifications?.checked,
+  };
+
+  try {
+    const data = await requestJson('/api/notifications', {
+      method: 'POST',
+      body: JSON.stringify(prefs),
+    });
+    syncCadenceControls(data.preferences || prefs);
+    scheduleLocalNotification(data.preferences || prefs);
+    setStatus(els.notificationsStatus, 'Notification settings saved.');
+  } catch (error) {
+    setStatus(els.notificationsStatus, error.message || 'Could not save notification settings.', true);
+  }
+});
+
+if (els.sendTestEmailBtn) {
+  els.sendTestEmailBtn.addEventListener('click', async () => {
+    setStatus(els.notificationsStatus, '');
+    try {
+      const data = await requestJson('/api/notifications/test', {
+        method: 'POST',
+      });
+      setStatus(els.notificationsStatus, data.message || 'Test email sent successfully.');
+    } catch (error) {
+      setStatus(els.notificationsStatus, error.message || 'Could not send test email.', true);
+    }
+  });
+}
+
 applyValidationMessages();
 loadProfile();
+loadNotifications();
