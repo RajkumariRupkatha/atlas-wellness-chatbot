@@ -91,8 +91,8 @@ const RESPONSE_DELAY_MS = 350;
 const TOKEN_KEY = 'atlas_token';
 
 const ui = {
-  documentTitle: 'Atlas Wellness Assistant',
-  title: 'Atlas Wellness Assistant',
+  documentTitle: 'Atlas',
+  title: 'Atlas',
   subtitle: 'Your wellness companion for better routines, lower stress, and sustainable healthy habits.',
   placeholder: 'Ask about sleep, stress, energy, focus, or healthy routines...',
   send: 'Send',
