@@ -316,6 +316,11 @@ if (!supabase) {
 app.use(cors());
 app.use(express.json());
 app.use(express.static('frontend'));
+
+app.get('/', (_req, res) => {
+  res.sendFile('landing.html', { root: 'frontend' });
+});
+
 app.use('/api', authenticateRequest);
 
 // Utility helpers
