@@ -17,6 +17,7 @@ const elements = {
   sessionList: document.getElementById('sessionList'),
   newChatBtn: document.getElementById('newChatBtn'),
   sidebarSignOut: document.getElementById('sidebarSignOut'),
+  responseStyle: document.getElementById('responseStyle'),
 };
 
 // Sidebar collapse/expand + drag resize
@@ -484,7 +485,7 @@ async function deleteSession(sessionId) {
   }
 }
 
-async function sendMessage(content) {
+async function sendMessage(content, responseStyle = 'balanced') {
   addMessage(content, 'user');
   elements.chatInput.value = '';
   setLoadingState(true);
@@ -495,7 +496,7 @@ async function sendMessage(content) {
     const data = await requestJson('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: content }),
+      body: JSON.stringify({ message: content, responseStyle }),
     });
 
     setTyping(false);
@@ -545,7 +546,7 @@ function handleFormSubmit(event) {
   const message = elements.chatInput.value.trim();
   if (!message) return;
 
-  sendMessage(message);
+  sendMessage(message, elements.responseStyle ? elements.responseStyle.value : 'balanced');
 }
 
 function bindEvents() {

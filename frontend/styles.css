@@ -1112,9 +1112,32 @@ a.new-chat-btn {
 
 .chat-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: end;
+}
+
+.style-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 13px 11px;
+  border-radius: 18px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface-primary);
+  box-shadow: var(--shadow-soft);
+  min-width: 110px;
+}
+
+.style-shell select {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--text-body);
+  padding: 0;
+  cursor: pointer;
 }
 
 .input-shell {
@@ -1809,6 +1832,22 @@ a.new-chat-btn {
   border: 0;
   border-top: 1px solid rgba(82, 68, 52, 0.12);
   margin: 14px 0 12px;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+.toggle-row input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent-deep);
+  cursor: pointer;
 }
 
 .danger-zone h2 {

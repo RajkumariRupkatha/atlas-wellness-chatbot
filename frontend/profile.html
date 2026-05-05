@@ -42,6 +42,7 @@
             <nav class="profile-v2-menu" aria-label="Profile sections">
               <button type="button" class="menu-item active" data-section="account">Account</button>
               <button type="button" class="menu-item" data-section="security">Security</button>
+              <button type="button" class="menu-item" data-section="notifications">Notifications</button>
             </nav>
 
             <button id="logoutBtn" type="button" class="profile-logout-link" style="margin-top:4px;">Sign out</button>
@@ -79,6 +80,29 @@
                 <div class="profile-v2-actions">
                   <button class="primary-btn" type="submit">Update Email</button>
                   <p id="emailStatus" class="status"></p>
+                </div>
+              </form>
+            </section>
+
+            <!-- Notifications section -->
+            <section class="profile-v2-panel" id="notificationsSection" style="display:none;">
+              <h1>Notifications</h1>
+              <p style="color:var(--muted);font-size:0.9rem;margin-bottom:20px;">Get a daily email reminder to complete your wellness check-in.</p>
+
+              <form id="notificationsForm" class="profile-v2-form">
+                <label class="toggle-row">
+                  <span>Daily check-in reminder</span>
+                  <input id="dailyReminderToggle" type="checkbox" />
+                </label>
+
+                <label id="reminderTimeField">
+                  <span>Reminder time</span>
+                  <input id="reminderTime" type="time" value="20:00" />
+                </label>
+
+                <div class="profile-v2-actions">
+                  <button class="primary-btn" type="submit">Save Preferences</button>
+                  <p id="notificationsStatus" class="status"></p>
                 </div>
               </form>
             </section>
@@ -144,6 +168,7 @@
         var section = btn.dataset.section;
         document.getElementById('accountSection').style.display = section === 'account' ? '' : 'none';
         document.getElementById('securitySection').style.display = section === 'security' ? '' : 'none';
+        document.getElementById('notificationsSection').style.display = section === 'notifications' ? '' : 'none';
       });
     });
   </script>

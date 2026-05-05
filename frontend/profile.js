@@ -244,3 +244,50 @@ els.logoutBtn.addEventListener('click', () => {
 
 applyValidationMessages();
 loadProfile();
+
+// ── Notifications / Reminders ──────────────────────────────────────────────
+const notificationsForm = document.getElementById('notificationsForm');
+const dailyReminderToggle = document.getElementById('dailyReminderToggle');
+const reminderTimeInput = document.getElementById('reminderTime');
+const reminderTimeField = document.getElementById('reminderTimeField');
+const notificationsStatus = document.getElementById('notificationsStatus');
+
+async function loadNotificationPrefs() {
+  const token = requireToken();
+  if (!token) return;
+  try {
+    const data = await requestJson('/api/notifications');
+    const prefs = data.preferences || {};
+    if (dailyReminderToggle) dailyReminderToggle.checked = !!prefs.dailyReminder;
+    if (reminderTimeInput) reminderTimeInput.value = prefs.reminderTime || '20:00';
+    toggleReminderTimeVisibility();
+  } catch (_) {}
+}
+
+function toggleReminderTimeVisibility() {
+  if (!reminderTimeField) return;
+  reminderTimeField.style.display = dailyReminderToggle && dailyReminderToggle.checked ? '' : 'none';
+}
+
+if (dailyReminderToggle) dailyReminderToggle.addEventListener('change', toggleReminderTimeVisibility);
+
+if (notificationsForm) {
+  notificationsForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    setStatus(notificationsStatus, '');
+    try {
+      await requestJson('/api/notifications', {
+        method: 'POST',
+        body: JSON.stringify({
+          dailyReminder: dailyReminderToggle ? dailyReminderToggle.checked : false,
+          reminderTime: reminderTimeInput ? reminderTimeInput.value : '20:00',
+        }),
+      });
+      setStatus(notificationsStatus, 'Preferences saved.');
+    } catch (error) {
+      setStatus(notificationsStatus, error.message, true);
+    }
+  });
+}
+
+loadNotificationPrefs();

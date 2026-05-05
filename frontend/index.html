@@ -99,6 +99,14 @@
           <span class="input-label">Message Atlas</span>
           <input id="chatInput" type="text" placeholder="Ask about sleep, stress, energy, focus, or healthy routines..." autocomplete="off" required />
         </label>
+        <label class="style-shell" for="responseStyle">
+          <span class="input-label">Style</span>
+          <select id="responseStyle" aria-label="Response style">
+            <option value="short">Short</option>
+            <option value="balanced" selected>Balanced</option>
+            <option value="detailed">Detailed</option>
+          </select>
+        </label>
         <button id="sendBtn" type="submit">Send</button>
       </form>
       <p id="statusText" class="status"></p>
