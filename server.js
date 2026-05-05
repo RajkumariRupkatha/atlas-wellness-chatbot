@@ -3,7 +3,9 @@ require('dotenv').config();
 const http = require('node:http');
 const express = require('express');
 const cors = require('cors');
+const cron = require('node-cron');
 const { OpenAI } = require('openai');
+const { Resend } = require('resend');
 const { createClient } = require('@supabase/supabase-js');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
@@ -19,8 +21,10 @@ if (!process.env.JWT_SECRET) {
 // App configuration
 const APP_CONFIG = Object.freeze({
   port: process.env.PORT || 3000,
-  openaiModel: process.env.OPENAI_MODEL || 'gpt-4',
+  openaiModel: process.env.OPENAI_MODEL || 'gpt-5.4-mini',
   openaiApiKey: process.env.OPENAI_API_KEY || process.env.API_KEY,
+  resendApiKey: process.env.RESEND_API_KEY,
+  emailFrom: process.env.EMAIL_FROM || 'Atlas Wellness <onboarding@resend.dev>',
   supabaseUrl: process.env.SUPABASE_URL,
   supabaseKey: process.env.SUPABASE_KEY,
   jwtSecret: process.env.JWT_SECRET,
@@ -52,6 +56,8 @@ const runtimeSettings = {
 
 const DEFAULT_NOTIFICATION_PREFERENCES = Object.freeze({
   dailyReminder: true,
+  reminderTime: '20:00',
+  timezone: 'UTC',
   weeklySummary: true,
   push: false,
   email: true,
@@ -70,7 +76,7 @@ const memoryStore = {
 let persistenceMode =
   APP_CONFIG.supabaseUrl && APP_CONFIG.supabaseKey ? 'supabase' : 'memory';
 
-const GREETING_PHRASES = Object.freeze([
+  const GREETING_PHRASES = Object.freeze([
   'hello',
   'hi',
   'hey',
@@ -297,6 +303,7 @@ assertRequiredConfig(APP_CONFIG.openaiApiKey, 'ERROR: OPENAI_API_KEY (or API_KEY
 // External clients
 const app = express();
 const openai = new OpenAI({ apiKey: APP_CONFIG.openaiApiKey });
+const resend = APP_CONFIG.resendApiKey ? new Resend(APP_CONFIG.resendApiKey) : null;
 const supabase =
   APP_CONFIG.supabaseUrl && APP_CONFIG.supabaseKey
     ? createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseKey)
@@ -408,6 +415,18 @@ function buildSentimentTone(sentiment) {
   return { role: 'system', content: tone };
 }
 
+function getStyleInstructions(responseStyle = 'balanced') {
+  const style = (responseStyle || 'balanced').toString().toLowerCase();
+  if (style === 'short') {
+    return 'Respond concisely. Use short paragraphs and up to 3–5 bullet points when giving tips. Keep language direct and actionable.';
+  }
+  if (style === 'detailed') {
+    return 'Respond with clear headings, short paragraphs, and examples. Provide more explanation and 2–3 brief examples where helpful. Use bullets for steps and include brief rationale.';
+  }
+  // balanced
+  return 'Respond in a balanced, easy-to-read style: short paragraphs, occasional bullets for steps, and enough context to be useful without overwhelming.';
+}
+
 function buildCheckinContext(checkins) {
   if (!checkins || checkins.length === 0) return null;
 
@@ -493,6 +512,221 @@ function subtractDays(date, days) {
 function cloneData(value) {
   if (value === null || value === undefined) return value;
   return JSON.parse(JSON.stringify(value));
+}
+
+let reminderCronTask = null;
+let reminderTickInProgress = false;
+
+function isValidReminderTime(value) {
+  return typeof value === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
+function isValidTimeZone(value) {
+  if (typeof value !== 'string' || !value.trim()) return false;
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format(new Date());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function normalizeNotificationPreferences(raw = {}) {
+  return {
+    dailyReminder: !!raw.dailyReminder,
+    reminderTime: isValidReminderTime(raw.reminderTime)
+      ? raw.reminderTime
+      : DEFAULT_NOTIFICATION_PREFERENCES.reminderTime,
+    timezone: isValidTimeZone(raw.timezone)
+      ? raw.timezone
+      : DEFAULT_NOTIFICATION_PREFERENCES.timezone,
+    weeklySummary: !!raw.weeklySummary,
+    push: !!raw.push,
+    email: !!raw.email,
+  };
+}
+
+function extractUserIdFromNotificationKey(key) {
+  const prefix = 'notifications_';
+  if (typeof key !== 'string' || !key.startsWith(prefix)) return null;
+  return key.slice(prefix.length) || null;
+}
+
+function getTimePartsInZone(date, timeZone) {
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const partMap = {};
+  for (const part of formatter.formatToParts(date)) {
+    if (part.type !== 'literal') {
+      partMap[part.type] = Number(part.value);
+    }
+  }
+
+  return {
+    year: partMap.year,
+    month: partMap.month,
+    day: partMap.day,
+    hour: partMap.hour,
+    minute: partMap.minute,
+    second: partMap.second,
+  };
+}
+
+function getTimeZoneOffsetMs(date, timeZone) {
+  const p = getTimePartsInZone(date, timeZone);
+  const asUtc = Date.UTC(p.year, p.month - 1, p.day, p.hour, p.minute, p.second);
+  return asUtc - date.getTime();
+}
+
+function zonedTimeToUtc(timeZone, year, month, day, hour = 0, minute = 0, second = 0) {
+  const utcGuess = new Date(Date.UTC(year, month - 1, day, hour, minute, second));
+  const offsetMs = getTimeZoneOffsetMs(utcGuess, timeZone);
+  return new Date(utcGuess.getTime() - offsetMs);
+}
+
+function getUtcStartOfLocalDay(date, timeZone) {
+  const p = getTimePartsInZone(date, timeZone);
+  return zonedTimeToUtc(timeZone, p.year, p.month, p.day, 0, 0, 0);
+}
+
+function getLocalDateKey(date, timeZone) {
+  const p = getTimePartsInZone(date, timeZone);
+  return `${p.year}-${String(p.month).padStart(2, '0')}-${String(p.day).padStart(2, '0')}`;
+}
+
+function isReminderDueNow(date, prefs) {
+  if (!prefs.dailyReminder || !prefs.email || !isValidReminderTime(prefs.reminderTime)) {
+    return false;
+  }
+
+  const [targetHour, targetMinute] = prefs.reminderTime.split(':').map(Number);
+  const local = getTimePartsInZone(date, prefs.timezone || DEFAULT_NOTIFICATION_PREFERENCES.timezone);
+  return local.hour === targetHour && local.minute === targetMinute;
+}
+
+async function listNotificationSettings() {
+  return withPersistence(
+    'listNotificationSettings',
+    async () => {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('key,value')
+        .like('key', 'notifications_%');
+      if (error) throw error;
+      return data || [];
+    },
+    async () =>
+      Array.from(memoryStore.settings.values())
+        .filter((row) => typeof row.key === 'string' && row.key.startsWith('notifications_'))
+        .map((row) => cloneData(row))
+  );
+}
+
+async function sendDailyReminderEmail(user, prefs) {
+  if (!resend || !user?.email) {
+    return false;
+  }
+
+  const displayName = user.full_name || user.email.split('@')[0] || 'there';
+  const reminderTimeLabel = prefs.reminderTime || DEFAULT_NOTIFICATION_PREFERENCES.reminderTime;
+  const tzLabel = prefs.timezone || DEFAULT_NOTIFICATION_PREFERENCES.timezone;
+
+  await resend.emails.send({
+    from: APP_CONFIG.emailFrom,
+    to: user.email,
+    subject: 'Atlas reminder: your daily check-in',
+    text: [
+      `Hi ${displayName},`,
+      '',
+      'Friendly reminder from Atlas to complete your daily wellness check-in.',
+      `Preferred reminder time: ${reminderTimeLabel} (${tzLabel}).`,
+      '',
+      'A quick check-in helps you track sleep, stress, energy, mood, and hydration trends.',
+      '',
+      'Open Atlas and complete your check-in when ready.',
+      '',
+      '— Atlas Wellness',
+    ].join('\n'),
+  });
+
+  return true;
+}
+
+async function processDailyReminderTick() {
+  if (reminderTickInProgress) return;
+  reminderTickInProgress = true;
+
+  try {
+    const now = new Date();
+    const rows = await listNotificationSettings();
+
+    for (const row of rows) {
+      const userId = extractUserIdFromNotificationKey(row.key);
+      if (!userId) continue;
+
+      const prefs = normalizeNotificationPreferences(row.value || {});
+      if (!isReminderDueNow(now, prefs)) continue;
+
+      const todayKey = getLocalDateKey(now, prefs.timezone);
+      const stateKey = `notification_state_${userId}`;
+      const stateRow = await getSetting(stateKey);
+      const lastReminderLocalDate = stateRow?.value?.lastReminderLocalDate || null;
+      if (lastReminderLocalDate === todayKey) continue;
+
+      const user = await findUserById(userId);
+      if (!user?.email) continue;
+
+      const dayStartUtc = getUtcStartOfLocalDay(now, prefs.timezone);
+      const checkinsToday = await countCheckinsSince(userId, dayStartUtc.toISOString());
+      if (checkinsToday > 0) {
+        await upsertSetting(stateKey, {
+          lastReminderLocalDate: todayKey,
+          skipped: 'already_checked_in',
+          updatedAt: now.toISOString(),
+        });
+        continue;
+      }
+
+      try {
+        const sent = await sendDailyReminderEmail(user, prefs);
+        if (!sent) continue;
+
+        await upsertSetting(stateKey, {
+          lastReminderLocalDate: todayKey,
+          lastSentAt: now.toISOString(),
+        });
+        console.log(`Reminder sent to ${user.email} for user ${userId}`);
+      } catch (error) {
+        console.error(`Reminder send failed for ${userId}:`, error?.message || error);
+      }
+    }
+  } catch (error) {
+    console.error('Reminder scheduler tick failed:', error?.message || error);
+  } finally {
+    reminderTickInProgress = false;
+  }
+}
+
+function startReminderScheduler() {
+  if (reminderCronTask) return;
+
+  reminderCronTask = cron.schedule('* * * * *', () => {
+    void processDailyReminderTick();
+  });
+
+  if (!resend) {
+    console.warn('Reminder scheduler started without RESEND_API_KEY. Email reminders are disabled.');
+  } else {
+    console.log('Reminder scheduler started (runs every minute).');
+  }
 }
 
 function markPersistenceUnavailable(context, error) {
@@ -729,16 +963,22 @@ async function ensureUser(userId, email = null, role = 'user', passwordHash = nu
     'ensureUser',
     async () => {
       const payload = { id: userId, email, role };
-      if (passwordHash) {
-        payload.password_hash = passwordHash;
-      }
-      if (fullName) {
-        payload.full_name = fullName;
-      }
+      if (passwordHash) payload.password_hash = passwordHash;
+      if (fullName) payload.full_name = fullName;
 
-      const { data, error } = await supabase.from('users').upsert(payload).select();
-      if (error) throw error;
-      return data[0];
+      console.log('ensureUser: upserting user', { id: userId, email });
+      try {
+        const { data, error } = await supabase.from('users').upsert(payload).select();
+        if (error) {
+          console.error('ensureUser: supabase upsert error', error);
+          throw error;
+        }
+        console.log('ensureUser: upsert succeeded', { id: userId, returned: Array.isArray(data) ? data.length : null });
+        return data[0];
+      } catch (err) {
+        console.error('ensureUser: exception during upsert', err?.message || err);
+        throw err;
+      }
     },
     async () => ensureMemoryUser(userId, email, role, passwordHash, fullName)
   );
@@ -748,14 +988,15 @@ async function findUserByEmail(email) {
   return withPersistence(
     'findUserByEmail',
     async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('*')
-        .eq('email', email)
-        .limit(1);
-
-      if (error) throw error;
-      return data?.[0] || null;
+      console.log('findUserByEmail: querying for', email);
+      const { data, error } = await supabase.from('users').select('*').eq('email', email).limit(1);
+      if (error) {
+        console.error('findUserByEmail: supabase error', error);
+        throw error;
+      }
+      const result = data?.[0] || null;
+      console.log('findUserByEmail: result', !!result);
+      return result;
     },
     async () => findMemoryUserByEmail(email)
   );
@@ -901,7 +1142,7 @@ async function generateSessionTitle(messages) {
       },
       { role: 'user', content: excerpt },
     ],
-    max_tokens: 16,
+    max_completion_tokens: 16,
     temperature: 0.3,
   });
 
@@ -912,11 +1153,25 @@ async function getAllSessions(userId) {
   return withPersistence(
     'getAllSessions',
     async () => {
-      const { data: sessions, error } = await supabase
-        .from('sessions')
-        .select('id, created_at, title')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false });
+      let sessions = null;
+      let error = null;
+
+      const querySessions = async (selectClause) => {
+        const result = await supabase
+          .from('sessions')
+          .select(selectClause)
+          .eq('user_id', userId)
+          .order('created_at', { ascending: false });
+        sessions = result.data;
+        error = result.error;
+      };
+
+      await querySessions('id, created_at, title');
+
+      if (error && /column .*title/i.test(error.message || '')) {
+        console.warn('getAllSessions: title column missing, retrying without it');
+        await querySessions('id, created_at');
+      }
 
       if (error) throw error;
       if (!sessions || sessions.length === 0) return [];
@@ -1224,13 +1479,24 @@ async function storeAssistantReply(sessionId, content) {
   return content;
 }
 
-async function generateAssistantReply(messages, kbResults = [], sentiment = 'NEUTRAL', checkinContext = null) {
-  const completion = await openai.chat.completions.create({
-    model: APP_CONFIG.openaiModel,
-    messages: buildModelMessagesWithContext(messages, kbResults, sentiment, checkinContext),
-    max_tokens: runtimeSettings.maxTokens,
-    temperature: runtimeSettings.temperature,
-  });
+async function generateAssistantReply(messages, kbResults = [], sentiment = 'NEUTRAL', checkinContext = null, responseStyle = 'balanced') {
+  let completion;
+  try {
+    const baseMessages = buildModelMessagesWithContext(messages, kbResults, sentiment, checkinContext);
+    const styleInstructions = getStyleInstructions(responseStyle);
+    // Insert style instructions as a system message right after the assistant system prompt
+    const systemInserted = [baseMessages[0], { role: 'system', content: styleInstructions }, ...baseMessages.slice(1)];
+    console.log('OpenAI request model:', APP_CONFIG.openaiModel, 'responseStyle:', responseStyle);
+    completion = await openai.chat.completions.create({
+      model: APP_CONFIG.openaiModel,
+      messages: systemInserted,
+      max_completion_tokens: runtimeSettings.maxTokens,
+      temperature: runtimeSettings.temperature,
+    });
+  } catch (error) {
+    console.error('OpenAI chat completion failed:', error?.message || error);
+    return 'Atlas is having trouble connecting to the AI service right now. Please check the OpenAI API key/model settings and try again.';
+  }
 
   const raw =
     completion.choices?.[0]?.message?.content?.trim() ||
@@ -1260,7 +1526,7 @@ async function handleChat(req, res) {
       return res.status(429).json({ error: 'Too many requests, slow down.' });
     }
 
-    const { message, userId } = req.body;
+    const { message, userId, responseStyle } = req.body;
 
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ error: 'message is required and must be a string' });
@@ -1290,6 +1556,7 @@ async function handleChat(req, res) {
       return res.json({ message: reply });
     }
 
+    console.log('chat: selected responseStyle =', responseStyle || 'balanced');
     const kbResults = await searchKnowledge(message);
     const sentiment = classifySentiment(message);
 
@@ -1305,7 +1572,7 @@ async function handleChat(req, res) {
     }
 
     const storedMessages = await getMessages(session.id);
-    const assistantReply = await generateAssistantReply(storedMessages, kbResults, sentiment, checkinContext);
+    const assistantReply = await generateAssistantReply(storedMessages, kbResults, sentiment, checkinContext, responseStyle || 'balanced');
     const savedReply = await storeAssistantReply(session.id, assistantReply);
 
     return res.json({ message: savedReply });
@@ -1759,8 +2026,9 @@ async function handleNotificationsGet(req, res) {
     }
 
     const data = await getSetting(`notifications_${userId}`);
+    const preferences = normalizeNotificationPreferences(data?.value || DEFAULT_NOTIFICATION_PREFERENCES);
     return res.json({
-      preferences: data?.value || DEFAULT_NOTIFICATION_PREFERENCES,
+      preferences,
     });
   } catch (error) {
     console.error('Error in /api/notifications GET:', error);
@@ -1785,12 +2053,7 @@ async function handleNotificationsSet(req, res) {
     }
 
     const prefs = req.body || {};
-    const clean = {
-      dailyReminder: !!prefs.dailyReminder,
-      weeklySummary: !!prefs.weeklySummary,
-      push: !!prefs.push,
-      email: !!prefs.email,
-    };
+    const clean = normalizeNotificationPreferences(prefs);
 
     await upsertSetting(`notifications_${userId}`, clean);
 
@@ -1986,6 +2249,33 @@ app.get('/health', (_req, res) => {
 });
 
 // Routes
+
+app.get('/api/ai-health', requireAuth, async (_req, res) => {
+  try {
+    const completion = await openai.chat.completions.create({
+      model: APP_CONFIG.openaiModel,
+      messages: [
+        { role: 'system', content: 'Reply with exactly: ok' },
+        { role: 'user', content: 'health check' },
+      ],
+      max_completion_tokens: 5,
+      temperature: 0,
+    });
+    return res.json({
+      status: 'ok',
+      model: APP_CONFIG.openaiModel,
+      sample: completion.choices?.[0]?.message?.content?.trim() || '',
+    });
+  } catch (error) {
+    console.error('AI health check failed:', error?.message || error);
+    return res.status(503).json({
+      status: 'error',
+      model: APP_CONFIG.openaiModel,
+      error: error.message,
+    });
+  }
+});
+
 app.post('/api/chat', requireAuth, handleChat);
 app.get('/api/history', requireAuth, handleHistory);
 app.post('/api/reset', requireAuth, handleReset);
@@ -2039,6 +2329,7 @@ async function start() {
   try {
     await ensureAdminSeed();
     await loadSettingsFromDb();
+    startReminderScheduler();
   } catch (error) {
     console.error('Startup warning:', error.message);
   }
