@@ -65,34 +65,36 @@
       align-items: center;
       justify-content: space-between;
       padding: 18px 48px;
-      background: rgba(244, 237, 227, 0.65);
-      backdrop-filter: blur(18px);
-      -webkit-backdrop-filter: blur(18px);
-      border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+      background: linear-gradient(
+        180deg,
+        rgba(255, 252, 247, 0.88) 0%,
+        rgba(255, 252, 247, 0.62) 55%,
+        rgba(255, 252, 247, 0.45) 100%
+      );
+      backdrop-filter: blur(24px) saturate(165%);
+      -webkit-backdrop-filter: blur(24px) saturate(165%);
+      border-bottom: 1px solid var(--glass-border);
+      box-shadow:
+        0 8px 32px rgba(90, 68, 43, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.75);
+      transform: translateY(0);
+      transition: transform 0.28s ease, box-shadow 0.2s ease;
+      will-change: transform;
+    }
+
+    nav.nav-hidden {
+      transform: translateY(calc(-100% - 6px));
     }
 
     .nav-logo {
       display: flex;
       align-items: center;
-      gap: 10px;
       text-decoration: none;
     }
 
-    .nav-logo-icon {
-      width: 36px;
-      height: 36px;
-      background: linear-gradient(135deg, var(--accent) 0%, #d99267 100%);
-      border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-
-    .nav-logo-icon svg { color: #fff; }
-
     .nav-logo-text {
       font-family: 'Playfair Display', Georgia, serif;
-      font-size: 1.3rem;
+      font-size: 2.15rem;
       font-weight: 700;
       color: var(--text);
       letter-spacing: -0.01em;
@@ -486,45 +488,6 @@
     .feature-tag.sage  { background: rgba(94,112,93,0.1);  color: var(--sage); }
     .feature-tag.warm  { background: rgba(159,79,47,0.08); color: var(--accent-deep); }
 
-    /* ── Stats strip ── */
-    .stats-strip {
-      padding: 60px 0;
-    }
-
-    .stats-grid {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1px;
-      background: rgba(82,68,52,0.1);
-      border-radius: var(--radius-card);
-      overflow: hidden;
-      border: 1px solid var(--glass-border);
-    }
-
-    .stat-item {
-      padding: 40px 36px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(14px);
-      -webkit-backdrop-filter: blur(14px);
-      text-align: center;
-    }
-
-    .stat-number {
-      font-family: 'Playfair Display', Georgia, serif;
-      font-size: clamp(2.2rem, 3.5vw, 3rem);
-      font-weight: 800;
-      color: var(--accent);
-      letter-spacing: -0.03em;
-      display: block;
-    }
-
-    .stat-label {
-      font-size: 0.84rem;
-      color: var(--muted);
-      margin-top: 6px;
-      font-weight: 500;
-    }
-
     /* ── How it works ── */
     .how-it-works {
       padding: 100px 0;
@@ -580,12 +543,15 @@
 
     .about-inner {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 80px;
+      grid-template-columns: 1fr;
+      gap: 40px;
       align-items: center;
+      justify-items: center;
     }
 
     .about-card {
+      max-width: 560px;
+      width: 100%;
       padding: 44px 40px;
       border-radius: var(--radius-card);
       background: var(--glass-strong);
@@ -648,42 +614,9 @@
       color: var(--accent-deep);
     }
 
-    .about-content .section-sub { margin-bottom: 32px; }
-
-    .about-tech {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-top: 28px;
-    }
-
-    .tech-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      padding: 12px 16px;
-      border-radius: 14px;
-      background: var(--glass-bg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--glass-border);
-      font-size: 0.82rem;
-      font-weight: 600;
-      color: var(--text);
-    }
-
-    .tech-dot {
-      width: 8px; height: 8px;
-      border-radius: 50%;
-      background: var(--accent);
-      flex-shrink: 0;
-    }
-
-    .tech-dot.sage { background: var(--sage); }
-
     /* ── CTA band ── */
     .cta-band {
-      padding: 100px 0;
+      padding: 100px 0 36px;
     }
 
     .cta-card {
@@ -734,61 +667,6 @@
       position: relative;
     }
 
-    /* ── Footer ── */
-    footer {
-      position: relative;
-      z-index: 1;
-      padding: 40px 48px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-top: 1px solid rgba(82,68,52,0.1);
-      flex-wrap: wrap;
-      gap: 16px;
-    }
-
-    .footer-brand {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      text-decoration: none;
-    }
-
-    .footer-logo-icon {
-      width: 28px; height: 28px;
-      background: linear-gradient(135deg, var(--accent) 0%, #d99267 100%);
-      border-radius: 8px;
-      display: flex; align-items: center; justify-content: center;
-    }
-
-    .footer-logo-icon svg { color: #fff; width: 14px; height: 14px; }
-
-    .footer-name {
-      font-family: 'Playfair Display', serif;
-      font-size: 1rem;
-      font-weight: 700;
-      color: var(--text);
-    }
-
-    .footer-copy {
-      font-size: 0.78rem;
-      color: var(--muted);
-    }
-
-    .footer-links {
-      display: flex;
-      gap: 24px;
-    }
-
-    .footer-links a {
-      font-size: 0.82rem;
-      color: var(--muted);
-      text-decoration: none;
-      font-weight: 500;
-      transition: color 0.15s;
-    }
-    .footer-links a:hover { color: var(--accent); }
-
     /* ── Responsive ── */
     @media (max-width: 1024px) {
       nav { padding: 16px 28px; }
@@ -800,25 +678,20 @@
       .hero-title { font-size: clamp(2.4rem, 5vw, 3.2rem); }
       .section-inner { padding: 0 28px; }
       .features-grid { grid-template-columns: 1fr 1fr; }
-      .about-inner { grid-template-columns: 1fr; gap: 40px; }
       .cta-card { padding: 52px 36px; }
-      footer { padding: 32px 28px; }
+      .cta-band { padding: 80px 0 28px; }
     }
 
     @media (max-width: 640px) {
       nav { padding: 14px 20px; }
-      .nav-logo-text { font-size: 1.1rem; }
-      .btn-ghost { display: none; }
+      .nav-logo-text { font-size: 1.75rem; }
       .hero { padding: 100px 20px 60px; }
       .hero-ctas { flex-direction: column; align-items: flex-start; }
       .section-inner { padding: 0 20px; }
       .features-grid { grid-template-columns: 1fr; }
-      .stats-grid { grid-template-columns: 1fr; }
       .steps-grid { grid-template-columns: 1fr; }
-      .about-tech { grid-template-columns: 1fr; }
       .cta-card { padding: 44px 24px; }
       .cta-card-actions { flex-direction: column; }
-      .footer-links { display: none; }
       .hero-phone-mock { width: 260px; }
     }
 
@@ -837,20 +710,10 @@
   <!-- ── Navigation ── -->
   <nav aria-label="Main navigation">
     <a class="nav-logo" href="/landing.html" aria-label="Atlas home">
-      <div class="nav-logo-icon" aria-hidden="true">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 2C8 2 4 6 4 10c0 5 8 12 8 12s8-7 8-12c0-4-4-8-8-8z"/>
-          <circle cx="12" cy="10" r="2.5"/>
-        </svg>
-      </div>
       <span class="nav-logo-text">Atlas</span>
     </a>
     <div class="nav-actions">
       <a class="btn-ghost" href="/signin.html">Sign in</a>
-      <a class="btn-primary" href="/signin.html">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><polyline points="10 17 15 12 10 7"/><line x1="15" y1="12" x2="3" y2="12"/></svg>
-        Get started
-      </a>
     </div>
   </nav>
 
@@ -858,10 +721,6 @@
   <section class="hero" aria-labelledby="hero-heading">
     <div class="hero-inner">
       <div class="hero-content">
-        <div class="hero-eyebrow" aria-label="Daily Wellness Companion">
-          <span aria-hidden="true"></span>
-          Daily Wellness Companion
-        </div>
         <h1 class="hero-title" id="hero-heading">
           Your personal guide to <em>feeling better</em>, every day.
         </h1>
@@ -886,7 +745,6 @@
               </div>
               <div class="mock-header-text">
                 <h4>Atlas</h4>
-                <p>Wellness Assistant</p>
               </div>
             </div>
             <div class="mock-bubble assistant">
@@ -927,26 +785,6 @@
               <span class="stat-chip-label">Mood: 8 / 10</span>
             </div>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- ── Stats strip ── -->
-  <section class="stats-strip" aria-label="App statistics">
-    <div class="section-inner">
-      <div class="stats-grid">
-        <div class="stat-item">
-          <span class="stat-number">5</span>
-          <p class="stat-label">Wellness metrics tracked daily</p>
-        </div>
-        <div class="stat-item">
-          <span class="stat-number">AI</span>
-          <p class="stat-label">Personalised guidance, every conversation</p>
-        </div>
-        <div class="stat-item">
-          <span class="stat-number">100%</span>
-          <p class="stat-label">Private — your data stays yours</p>
         </div>
       </div>
     </div>
@@ -1037,47 +875,14 @@
               <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
             </svg>
           </div>
-          <h3>Built by Rajkumari Rupkatha</h3>
-          <p class="role">Developer &amp; Designer</p>
-          <p>Atlas was designed and developed as a personal wellness project — combining a passion for human health with modern AI technology.</p>
-          <p>The goal: make evidence-based wellness guidance feel as natural as talking to a knowledgeable friend.</p>
+          <h3 id="about-heading">Created by the Atlas Wellness Team</h3>
+          <p class="role">Capstone Project - Texas Tech University</p>
+          <p>Atlas was designed and developed as a Texas Tech capstone project by a student team, combining our shared interest in human health, AI, and modern web technology.</p>
           <div class="about-tags">
             <span class="about-tag">Full-Stack</span>
             <span class="about-tag">AI &amp; ML</span>
             <span class="about-tag">UX Design</span>
             <span class="about-tag">Health Tech</span>
-          </div>
-        </div>
-
-        <div class="about-content">
-          <p class="section-eyebrow">About Atlas</p>
-          <h2 class="section-title" id="about-heading">Built with care, backed by research</h2>
-          <p class="section-sub">Atlas was built to fill a gap — most wellness apps either overwhelm you with data or give you generic advice that doesn't fit your life. Atlas does neither.</p>
-          <div class="about-tech">
-            <div class="tech-item">
-              <span class="tech-dot" aria-hidden="true"></span>
-              OpenAI GPT
-            </div>
-            <div class="tech-item">
-              <span class="tech-dot sage" aria-hidden="true"></span>
-              Node.js / Express
-            </div>
-            <div class="tech-item">
-              <span class="tech-dot" aria-hidden="true"></span>
-              Supabase
-            </div>
-            <div class="tech-item">
-              <span class="tech-dot sage" aria-hidden="true"></span>
-              Vanilla JS
-            </div>
-            <div class="tech-item">
-              <span class="tech-dot" aria-hidden="true"></span>
-              JWT Auth
-            </div>
-            <div class="tech-item">
-              <span class="tech-dot sage" aria-hidden="true"></span>
-              Resend Email
-            </div>
           </div>
         </div>
       </div>
@@ -1091,32 +896,63 @@
         <h2 id="cta-heading">Ready to start feeling better?</h2>
         <p>Join Atlas today. Free to use, takes 2 minutes to set up, and your first conversation is waiting.</p>
         <div class="cta-card-actions">
-          <a class="hero-cta-primary" href="/signin.html">
-            Create your account
+          <a class="hero-cta-primary" href="/signup.html">
+            Get started
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </a>
-          <a class="hero-cta-secondary" href="/signin.html">Sign in to existing account</a>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- ── Footer ── -->
-  <footer>
-    <a class="footer-brand" href="/landing.html" aria-label="Atlas home">
-      <div class="footer-logo-icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2C8 2 4 6 4 10c0 5 8 12 8 12s8-7 8-12c0-4-4-8-8-8z"/><circle cx="12" cy="10" r="2.5"/></svg>
-      </div>
-      <span class="footer-name">Atlas</span>
-    </a>
-    <p class="footer-copy">© 2026 Atlas Wellness. Built by Rajkumari Rupkatha.</p>
-    <nav class="footer-links" aria-label="Footer navigation">
-      <a href="/signin.html">Sign in</a>
-      <a href="/chat.html">App</a>
-      <a href="#features">Features</a>
-      <a href="#about">About</a>
-    </nav>
-  </footer>
+  <script>
+    (function () {
+      if ('scrollRestoration' in history) {
+        history.scrollRestoration = 'manual';
+      }
+      function toTop() {
+        window.scrollTo(0, 0);
+      }
+      toTop();
+      document.addEventListener('DOMContentLoaded', toTop);
+      window.addEventListener('load', function () {
+        toTop();
+        requestAnimationFrame(toTop);
+        setTimeout(toTop, 0);
+      });
+
+      const nav = document.querySelector('nav');
+      if (!nav) return;
+
+      let lastScrollY = window.scrollY || 0;
+      let ticking = false;
+      const TOP_THRESHOLD = 18;
+      const DELTA = 6;
+
+      function updateNavOnScroll() {
+        const currentY = window.scrollY || 0;
+        const diff = currentY - lastScrollY;
+
+        if (currentY <= TOP_THRESHOLD) {
+          nav.classList.remove('nav-hidden');
+        } else if (diff > DELTA) {
+          nav.classList.add('nav-hidden');
+        } else if (diff < -DELTA) {
+          nav.classList.remove('nav-hidden');
+        }
+
+        lastScrollY = currentY;
+        ticking = false;
+      }
+
+      window.addEventListener('scroll', function () {
+        if (!ticking) {
+          requestAnimationFrame(updateNavOnScroll);
+          ticking = true;
+        }
+      }, { passive: true });
+    })();
+  </script>
 
 </body>
 </html>

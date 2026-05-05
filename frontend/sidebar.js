@@ -10,7 +10,7 @@
 
     <div class="sidebar-hero">
       <p class="chat-heading-kicker">Daily Wellness Companion</p>
-      <h1 class="chat-heading-title">Atlas Wellness Assistant</h1>
+      <h1 class="chat-heading-title">Atlas</h1>
       <p class="chat-heading-sub">Your wellness companion for better routines, lower stress, and sustainable healthy habits.</p>
     </div>
 
