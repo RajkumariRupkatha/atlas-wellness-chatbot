@@ -93,16 +93,28 @@ els.form.addEventListener('submit', async (e) => {
     stress: Number(document.getElementById('stress').value),
     hydration: Number(document.getElementById('hydration').value),
     notes: document.getElementById('notes').value.trim() || null,
+    localDate: new Date().toLocaleDateString('en-CA'), // YYYY-MM-DD in local time
   };
 
   try {
-    await submitCheckin(payload);
-    setStatus('Check-in submitted. Thanks!');
+    const data = await submitCheckin(payload);
+    const streakMsg = buildStreakMessage(data.streak);
+    setStatus(streakMsg || 'Check-in submitted. Thanks!');
   } catch (error) {
     setStatus(error.message, true);
   } finally {
     setLoading(false);
   }
 });
+
+function buildStreakMessage(streak) {
+  if (!streak) return null;
+  const { currentStreak, longestStreak, alreadyCheckedIn } = streak;
+  if (alreadyCheckedIn) return 'Already checked in today. Streak holding strong!';
+  if (currentStreak === 1) return 'Check-in submitted. Day 1 — great start!';
+  const isNewRecord = currentStreak > 1 && currentStreak === longestStreak;
+  if (isNewRecord) return `New record! ${currentStreak}-day streak. Keep it going!`;
+  return `Check-in submitted. ${currentStreak}-day streak — keep it up!`;
+}
 
 attachSliderLabels();
